@@ -1582,10 +1582,6 @@ html.lite .card,html.lite .stat,html.lite .vz-card{animation:none!important}
     <button class="btn btn-sm" onclick="markHoliday()" id="btn-mark-holiday" style="background:#f59e0b;color:#fff;border-color:#d97706" title="Mark today as holiday — Day Order carries over to next working day">
       🏖 Holiday
     </button>
-    <button class="btn btn-sm" onclick="openQRScan()" style="background:#0891b2;color:#fff;border-color:#0891b2" title="QR Code Attendance">
-      <svg viewBox="0 0 16 16" fill="none" width="13" height="13"><rect x="2" y="2" width="5" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="0.5" stroke="currentColor" stroke-width="1.3"/><path d="M9 9h2v2H9zM13 9h1v1h-1zM9 12h1v1H9zM11 11h1v2h1v-3h-2zM13 13h1v1h-1z" fill="currentColor"/></svg>
-      QR Scan
-    </button>
     <div style="margin-left:auto;display:flex;gap:14px;font-size:12px;font-weight:600">
       <span style="color:#16a34a" id="att-pc-lbl">0 Present</span>
       <span style="color:#dc2626" id="att-ac-lbl">0 Absent</span>
@@ -3169,8 +3165,8 @@ var PLANS={
   // Features: Fees WA + Absent WA + Attendance AI only
   BASIC:{name:'Starter',days:30,maxStudents:50,features:{
     aiFeatures:true,googleSheets:false,autoBackup:true,multiCenter:false,advancedReports:false,
-    tamil:true,qrAttendance:false,waTypes:0,waCustomOnly:true,
-    feesWA:false,absentWA:false,lateWA:false,
+    tamil:true,qrAttendance:false,waTypes:2,waCustomOnly:false,
+    feesWA:true,absentWA:true,lateWA:false,
     aiModels:1,
     aiModuleIds:['attend_late'],
     teachingLog:true,monthlyGrowthWA:false,aiGrowthClass:false,
@@ -3179,7 +3175,7 @@ var PLANS={
   // Features: Basic + Late WA + Exam Notice WA + AI Growth Prediction + Timetable
   PRO:{name:'Pro',days:183,maxStudents:150,features:{
     aiFeatures:true,googleSheets:false,autoBackup:true,multiCenter:false,advancedReports:true,
-    tamil:true,qrAttendance:true,waTypes:6,
+    tamil:true,qrAttendance:false,waTypes:6,
     feesWA:true,absentWA:true,lateWA:true,
     aiModels:5,
     aiModuleIds:['attend_late','weak_subject','late_pattern','timetable','frequent_absent'],
@@ -3189,7 +3185,7 @@ var PLANS={
   // Features: Pro features + Google Sheets + Exam Marks + Monthly Report
   PREMIUM:{name:'Premium',maxStudents:100,features:{
     aiFeatures:true,googleSheets:true,autoBackup:true,multiCenter:false,advancedReports:true,
-    tamil:true,qrAttendance:true,waTypes:6,
+    tamil:true,qrAttendance:false,waTypes:6,
     feesWA:true,absentWA:true,lateWA:true,
     aiModels:5,
     aiModuleIds:['attend_late','weak_subject','late_pattern','timetable','frequent_absent'],
@@ -3198,7 +3194,7 @@ var PLANS={
   // ── ULTIMATE ₹1500/yr — Unlimited + All AI ──────────────────
   ULTIMATE:{name:'Elite',days:365,maxStudents:99999,features:{
     aiFeatures:true,googleSheets:true,autoBackup:true,multiCenter:true,advancedReports:true,
-    tamil:true,qrAttendance:true,waTypes:8,
+    tamil:true,qrAttendance:false,waTypes:8,
     feesWA:true,absentWA:true,lateWA:true,
     aiModels:8,
     aiModuleIds:['attend_late','weak_subject','frequent_absent','fee_forecast','late_pattern','concentration','timetable','msgdraft'],
@@ -3207,7 +3203,7 @@ var PLANS={
   // ── TRIAL — 7 days, max 5 students, ALL features unlocked ──
   TRIAL:{name:'Free Trial',maxStudents:20,features:{
     aiFeatures:true,googleSheets:true,autoBackup:true,multiCenter:true,advancedReports:true,
-    tamil:true,qrAttendance:true,waTypes:8,
+    tamil:true,qrAttendance:false,waTypes:8,
     feesWA:true,absentWA:true,lateWA:true,
     aiModels:8,
     aiModuleIds:['attend_late','weak_subject','frequent_absent','fee_forecast','late_pattern','concentration','timetable','msgdraft'],
@@ -7523,7 +7519,7 @@ function renderWATypes() {
     const isActive = waType === wt.id;
     // First 8 types keep the original plan limits; the extra template types are open on plans that allow 8.
     const bi = _WA_BASE8.indexOf(wt.id);
-    const locked = bi >= 0 ? bi >= maxTypes : maxTypes < 8;
+    const locked = !_waAllowed(wt.id);
     return `<button onclick="${locked ? 'openUpgrade()' : `setWAType('${wt.id}')`}"
       style="padding:7px 4px;border-radius:9px;border:1.5px solid ${isActive ? wt.color : 'var(--br)'};line-height:1.25;
         background:${isActive ? wt.bg : 'var(--card)'};color:${isActive ? wt.color : 'var(--tx2)'};
@@ -16380,7 +16376,7 @@ function getSnapshot() {
 }
 function runBackup(source) {
   const data = getSnapshot();
-  const json = JSON.stringify(data,null,2);
+  const json = JSON.stringify(data);
   const size = (json.length/1024).toFixed(1)+' KB';
   const saved = JSON.parse(erpGet(BK_KEY)||'[]');
   saved.unshift({ts:data.timestamp,data:json,source,size});
@@ -17192,11 +17188,11 @@ function renderPlansHTML() {
   const lic = window.__LIC__||{};
   const PL = [
     {k:'BASIC',   name:'Starter', price:'₹200',   per:'/month',   sub:'Up to 50 students · 1 month',
-      f:['✅ Students, Admission, Batches','✅ Attendance, Fees & Receipts','✅ Marks & Exams','✅ Class &amp; Medium Strength','✅ WhatsApp: free custom message (1 batch at a time)','❌ WhatsApp templates (Fee, Absent, Late…)','❌ Staff, Timetable, Teaching Log','❌ Advanced AI']},
+      f:['✅ Students, Admission, Batches','✅ Attendance, Fees & Receipts','✅ Marks & Exams','✅ Class &amp; Medium Strength','✅ 2 WhatsApp templates: Absent Alert, Fee Reminder','✅ 4 exams / month','❌ Other WhatsApp templates (Late, Exam, Monthly…)','❌ Staff, Timetable, Teaching Log','❌ Advanced AI']},
     {k:'PRO',     name:'Pro',     price:'₹1,000', per:'/6 months',sub:'Up to 150 students · 6 months',
-      f:['✅ Everything in Starter','✅ WhatsApp templates (6 types)','✅ Staff, Timetable, Teaching Log','✅ School Marks, Student Summary','✅ Advanced reports + QR attendance','✅ AI: 5 modules','❌ Rising Stars, Target, Google Sheets']},
+      f:['✅ Everything in Starter','✅ 7 WhatsApp templates: Absent, Fee, Late, Exam Notice, Exam Result, Monthly Report, Student Left','✅ 15 exams / month','✅ Staff, Timetable, Teaching Log','✅ School Marks, Student Summary','✅ Advanced reports','✅ AI: 5 modules','❌ Rising Stars, Target, Google Sheets']},
     {k:'ULTIMATE',name:'Elite',   price:'₹1,800', per:'/year',    sub:'Unlimited students · 1 year from activation',
-      f:['✅ Everything in Pro','✅ All WhatsApp types','✅ All 8 AI modules + Fee Forecast','✅ Rising Stars, Target','✅ Google Sheets, Multi-Center','✅ Priority support']}
+      f:['✅ Everything in Pro','✅ ALL WhatsApp templates (+ Admission, Fee Receipt, Holiday, Birthday, Special Class…)','✅ Unlimited exams','✅ All 8 AI modules + Fee Forecast','✅ Rising Stars, Target','✅ Google Sheets, Multi-Center','✅ Priority support']}
   ];
   return PL.map(d=>{
     const isCur=lic.plan===d.k,isP=d.k==='PRO',isE=d.k==='ULTIMATE';
@@ -18666,7 +18662,7 @@ let wtActiveLang = 'en';
 function initWATemplatesPage() {
   const tabs = document.getElementById('wt-type-tabs');
   if (!tabs) return;
-  tabs.innerHTML = WT_ALL_TYPES.map(t => {
+  tabs.innerHTML = WT_ALL_TYPES.filter(t => _waAllowed(t.id)).map(t => {
     const hasSaved = !!getWTSaved(t.id, 'ta');
     const tamilOnly = t.id === 'monthly_summary';
     return `<button onclick="selectWTType('${t.id}')" id="wttab-${t.id}"
@@ -25508,6 +25504,9 @@ function _licGate(){var l=window.__LIC__||{};var ov=document.getElementById('lic
 (function(){var o=window.initLicenseUI;if(typeof o!=='function')return;window.initLicenseUI=function(){var r=o.apply(this,arguments);try{_applyNavLocks();_licGate();_waStarterUI()}catch(e){console.error(e)}return r}})();
 /* Starter WhatsApp: only a free custom message, one batch at a time */
 function _waIsStarter(){var l=window.__LIC__||{};return !!(l.features&&l.features.waCustomOnly)}
+var _WA_PLAN={BASIC:['absent','fees'],PRO:['absent','late','fees','exam_notice','marks','monthly','student_left'],PREMIUM:['absent','late','fees','exam_notice','marks','monthly','student_left']};
+function _waAllowed(id){var l=window.__LIC__||{};if(l.daysLeft>9000)return true;var S=_WA_PLAN[l.plan];return !S||S.indexOf(id)>=0}
+function _isStarterPlan(){var l=window.__LIC__||{};return l.plan==='BASIC'&&!(l.daysLeft>9000)}
 function _waStarterFilter(list){if(!_waIsStarter())return list;var msg=(document.getElementById('wa-custom-msg')||{}).value||'';var b=(document.getElementById('wa-starter-batch')||{}).value||'';if(!msg.trim()||!b)return [];return list.filter(function(s){try{return _stuBatchList(s).indexOf(b)!==-1}catch(e){return false}})}
 function _waStarterUI(){var st=_waIsStarter();var g=document.getElementById('wa-type-grid');if(!g)return;var tab=document.getElementById('wa-tab-templates');if(tab)tab.style.display=st?'none':'';
   var hide=['wa-template-sel','wa-recipients-sel','wa-class-chips'];hide.forEach(function(id){var e=document.getElementById(id);if(e&&e.closest('.fg'))e.closest('.fg').style.display=st?'none':''});
@@ -25516,10 +25515,34 @@ function _waStarterUI(){var st=_waIsStarter();var g=document.getElementById('wa-
   if(!st){if(box)box.remove();return}
   if(!box){var cm=document.getElementById('wa-custom-msg');if(!cm)return;var fg=cm.closest('.fg');box=document.createElement('div');box.id='wa-starter-box';box.className='fg';fg.parentNode.insertBefore(box,fg);}
   var cur=(document.getElementById('wa-starter-batch')||{}).value||'';
-  box.innerHTML='<div style="font-size:11px;background:#ecfdf5;border:.5px solid #86efac;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#166534">🆓 <b>Starter plan:</b> send a custom message to <b>one batch</b> at a time. Templates &amp; auto-reminders are in Pro / Elite.</div><label class="fl">Send to batch *</label><select class="fi" id="wa-starter-batch" onchange="buildWAQueue()"><option value="">Select a batch…</option>'+(window.batches||[]).map(function(b){return '<option value="'+escHtml(String(b.id))+'"'+(String(b.id)===cur?' selected':'')+'>'+escHtml(b.name||b.id)+'</option>'}).join('')+'</select>';
+  box.innerHTML='<div style="font-size:11px;background:#ecfdf5;border:.5px solid #86efac;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#166534">🆓 <b>Starter plan:</b> send a custom message to <b>one batch</b> at a time. Templates &amp; auto-reminders are in Pro / Elite.</div><label class="fl">Send to batch *</label><select class="fi" id="wa-starter-batch" onchange="buildWAQueue()"><option value="">Select a batch…</option>'+(typeof batches!=='undefined'?batches:[]).map(function(b){return '<option value="'+escHtml(String(b.id))+'"'+(String(b.id)===cur?' selected':'')+'>'+escHtml(b.name||b.id)+'</option>'}).join('')+'</select>';
   var cm2=document.getElementById('wa-custom-msg');if(cm2){var lb=cm2.closest('.fg').querySelector('label');if(lb)lb.textContent='Message *';cm2.placeholder='Type your message…';if(!cm2.dataset.st){cm2.dataset.st='1';cm2.addEventListener('input',function(){buildWAQueue()})}}}
-(function(){var o=window.renderWATypes;if(typeof o!=='function')return;window.renderWATypes=function(){var r=o.apply(this,arguments);try{_waStarterUI()}catch(e){}return r}})();
+(function(){var o=window.renderWATypes;if(typeof o!=='function')return;window.renderWATypes=function(){try{if(!_waAllowed(waType))waType=(_WA_PLAN[(window.__LIC__||{}).plan]||['absent'])[0]}catch(e){}var r=o.apply(this,arguments);try{_waStarterUI()}catch(e){}return r}})();
+(function(){var o=window.setWAType;if(typeof o!=='function')return;window.setWAType=function(t){if(!_waAllowed(t)){_upPopup('Higher plan template','This WhatsApp template is available in a higher plan.');return}return o.apply(this,arguments)}})();
 setTimeout(function(){try{_applyNavLocks();_licGate()}catch(e){}},600);
+
+/* Speed: 'change' backups are coalesced — one backup 45s after the last change (or when app is hidden) */
+(function(){var o=window.runBackup||runBackup,t=null,pend=false;
+ function flush(){if(!pend)return;pend=false;clearTimeout(t);var f=function(){try{o('change')}catch(e){console.error(e)}};(window.requestIdleCallback?requestIdleCallback(f,{timeout:4000}):setTimeout(f,50))}
+ window.runBackup=runBackup=function(src){if(src==='change'){pend=true;clearTimeout(t);t=setTimeout(flush,45000);return}return o.apply(this,arguments)};
+ window.addEventListener('pagehide',function(){if(pend){pend=false;try{o('change')}catch(e){}}});
+ document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&pend){pend=false;try{o('change')}catch(e){}}})})();
+
+/* ══ PLAN LIMITS: WhatsApp messages / month, exams / month ══ */
+var _LIMITS={BASIC:{wa:1e9,ex:4},PRO:{wa:1e9,ex:15},PREMIUM:{wa:1e9,ex:15},ULTIMATE:{wa:1e9,ex:1e9},TRIAL:{wa:1e9,ex:5}};
+function _lim(){var l=window.__LIC__||{};if(l.daysLeft>9000)return{wa:1e9,ex:1e9};return _LIMITS[l.plan]||_LIMITS.TRIAL}
+function _mk(){return new Date().toISOString().slice(0,7)}
+function _waUsed(){try{return +erpGet('_erp_wa_cnt_'+_mk())||0}catch(e){return 0}}
+function _upPopup(title,msg){var o=document.getElementById('lk-pop');if(o)o.remove();var d=document.createElement('div');d.id='lk-pop';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99998;display:flex;align-items:center;justify-content:center;padding:20px';d.innerHTML='<div style="background:var(--card,#fff);color:var(--tx,#111);border-radius:14px;padding:22px;max-width:340px;text-align:center"><div style="font-size:34px">🔒</div><div style="font-weight:800;font-size:16px;margin:6px 0">'+title+'</div><div style="font-size:13px;color:var(--tx2,#555);margin-bottom:14px">'+msg+'</div><button class="btn btn-p" style="width:100%;justify-content:center;margin-bottom:8px" onclick="document.getElementById(\'lk-pop\').remove();openUpgrade()">View plans</button><button class="btn" style="width:100%;justify-content:center" onclick="document.getElementById(\'lk-pop\').remove()">Not now</button></div>';document.body.appendChild(d)}
+var _waLast={k:'',t:0};
+function _waKey(u){var m=String(u).match(/(?:phone=|wa\.me\/)(\d+)/);var t=String(u).match(/[?&]text=([^&]*)/);return (m?m[1]:'')+'|'+(t?t[1].slice(0,80):'')}
+function _waCheck(u){if(_lim().wa>=1e9)return true;var k=_waKey(u),now=Date.now();if(k===_waLast.k&&now-_waLast.t<4000)return true;var c=_waUsed(),L=_lim().wa;if(c>=L){_upPopup('WhatsApp limit reached','This plan allows <b>'+L+'</b> WhatsApp messages per month. Upgrade for more.');return false}try{erpSet('_erp_wa_cnt_'+_mk(),String(c+1))}catch(e){}_waLast={k:k,t:now};if(c+1===Math.floor(L*0.9)&&L<1e9)showToast('⚠️ '+(c+1)+'/'+L+' WhatsApp messages used this month');return true}
+(function(){var o=window.open;window.open=function(u){if(typeof u==='string'&&/wa\.me\/|^whatsapp:\/\//.test(u)){if(!_waCheck(u))return null}return o.apply(this,arguments)}})();
+document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href')||'';if(/wa\.me\/|^whatsapp:\/\//.test(h)&&!_waCheck(h)){e.preventDefault();e.stopPropagation()}},true);
+function _exCheck(dateId){var d=(document.getElementById(dateId)||{}).value||'';var m=d.slice(0,7)||_mk();var n=(typeof exams!=='undefined'?exams:[]).filter(function(x){return x&&String(x.date||'').slice(0,7)===m}).length,L=_lim().ex;if(n>=L){_upPopup('Exam limit reached','This plan allows <b>'+L+'</b> exams per month ('+m+'). Upgrade to schedule more.');return false}return true}
+(function(){var o=window.saveExam;if(typeof o==='function')window.saveExam=function(){if(!_exCheck('m-exdate'))return;return o.apply(this,arguments)};var o2=window.ewSaveExamAndNext;if(typeof o2==='function')window.ewSaveExamAndNext=function(){if(!_exCheck('ew2-date'))return;return o2.apply(this,arguments)};
+ ['openSendResultsModal','openSendResultsModalEW','showExamNoticeWAModal','sendAllExamNoticeWA'].forEach(function(n){var f=window[n];if(typeof f!=='function')return;window[n]=function(){if(_isStarterPlan()){_upPopup('Pro plan feature','Sending exam results / notices on WhatsApp is available in <b>Pro</b> and <b>Elite</b> plans.');return}return f.apply(this,arguments)}})})();
+(function(){var o=window.renderPlansHTML;if(typeof o!=='function')return;window.renderPlansHTML=function(){var L=_lim(),l=window.__LIC__||{},m=(typeof exams!=='undefined'?exams:[]).filter(function(x){return x&&String(x.date||'').slice(0,7)===_mk()}).length;var u=L.ex>=1e9?'':'<div style="grid-column:1/-1;font-size:12px;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px;text-align:center">This month: 📝 Exams <b>'+m+' / '+L.ex+'</b></div>';return u+o.apply(this,arguments)}})();
 </script>
 
 <div id="xt-bg" onclick="if(event.target===this)xtClose()"><div id="xt-box">
